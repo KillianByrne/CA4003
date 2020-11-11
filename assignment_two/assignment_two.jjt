@@ -1,0 +1,423 @@
+options { 
+	VISITOR = true; 
+	JAVA_UNICODE_ESCAPE = true; 
+	MULTI = true; 
+	IGNORE_CASE = true;
+	//all production rules will not generate a ast node by default unless the deceration inside the production rule specifically says to do it.
+	NODE_DEFAULT_VOID = true;
+ 	}
+
+/*********************************
+*** SECTION 2 - USER CODE ***
+*********************************/
+        
+
+PARSER_BEGIN(assignment_two)
+
+import java.io.*;
+import java.util.*;
+
+public class assignment_two
+{
+	public static Hashtable ST = new Hashtable();
+	public static void main(String args[]) throws ParseException, FileNotFoundException
+	{
+
+		String temp;
+		String temp2;
+
+		if (args.length < 1)
+    {
+      System.out.println("Please pass in the filename.");
+      System.exit(1);
+    }
+
+		assignment_two parser = new assignment_two(new FileInputStream(args[0]));
+
+    SimpleNode root = parser.program();
+    System.out.println("*******************************");
+    System.out.println("*****Abstract Syntax Tree******");
+    System.out.println("*******************************\n");
+
+    root.dump(" ");
+    System.out.println("*******************************");
+    System.out.println("*******Semantic Analysis*******");
+    System.out.println("*******************************\n");
+    STVisitor stv = new STVisitor();
+    root.jjtAccept(stv,null);
+	}
+}
+
+PARSER_END(assignment_two)
+
+/*****************************************
+***** SECTION 3 - TOKEN DEFINITIONS *****
+*****************************************/
+TOKEN_MGR_DECLS :
+{
+    static int commentNesting = 0;
+}
+    
+/* Ignore any whitespace */
+SKIP : {
+    "\t"
+  | "\n"
+  | "\r"
+  | "\f"
+  | " "
+}
+
+/* Ingore comments */
+SKIP : {
+    < "//" ([" "-"~"])* ("\n" | "\r" | "\r\n") >
+  |   "/*" { commentNesting++; } : IN_COMMENT
+}
+
+<IN_COMMENT> SKIP : {
+    "/*" { commentNesting++; }
+  | "*/" { commentNesting--;
+          if (commentNesting == 0)
+              SwitchTo(DEFAULT);
+         }
+  /* Anything not recognised */
+  | <~[]>
+}
+
+
+TOKEN : {
+        < VAR: "var" >
+    |   < CONST: "const">
+    |   < RETURN: "return">
+    |   < INTEGER: "integer">
+    |   < DOUBLE: "double">
+    |   < BOOLEAN: "boolean">
+    |   < VOID: "void">
+    |   < MAIN: "main">
+    |   < IF: "if">
+    |   < ELSE: "else">
+    |   < TRUE: "true">
+    |   < FALSE: "false">
+    |   < WHILE: "while">
+    |   < SK: "skip">
+    |   < BEGIN: "begin">
+    |   < END: "end">
+    |   < THEN: "then">
+    |   < DO: "do">
+
+
+/* symbols */
+
+    |   < COMMA: ",">
+    |   < COLON: ":">
+    |   < SEMICOLON: ";">
+    |   < LEFT_BRACE: "{">
+    |   < RIGHT_BRACE: "}">
+    |   < LEFT_BRACKET: "(">
+    |   < RIGHT_BRACKET: ")">
+
+/* operators */
+
+    |   < ASSIGNMENT: "=">
+    |   < PLUS: "+">
+    |   < MINUS: "-">
+    |   < DIVIDE: "/">
+    |   < MULTIPLY : "*">
+    |   < NOT: "~">
+    |   < OR: "||">
+    |   < AND: "&&">
+    |   < EQUALS: "==">
+    |   < NOT_EQUALS: "!=">
+    |   < LESS_THAN: "<">
+    |   < LESS_THAN_OR_EQUAL_TO: "<=">
+    |   < GREATER_THAN: ">">
+    |   < GREATER_THAN_OR_EQUAL_TO: ">=">
+}
+
+TOKEN : /* Identifiers */
+ {
+		<IDENTIFIER : <CHAR> (<DIGIT> | <CHAR> | "_" )* >
+ 	|	<#CHAR : ["a" - "z"] | ["A" - "Z"]>
+ }
+
+TOKEN : /* Numbers */
+{
+		<NUMBER : (<DIGIT>)+>
+	|	<REAL: ( (<DIGIT>)+ "." (<DIGIT>)*) | ((<DIGIT>)* "." (<DIGIT>)+) >
+	|	<#DIGIT : ["0" - "9"]>
+}
+
+TOKEN : /* Anything not recognised so far */
+{
+    < OTHER : ~[] >
+}
+
+/*****************************************
+***** SECTION 4 - GRAMMAR *****
+*****************************************/
+
+SimpleNode program() #Program : {}
+{
+	decl_list()	
+	function_list()
+	main()
+	<EOF>
+	{ return jjtThis; }
+}
+
+void decl_list() : {}
+{	
+	//( decl() decl_list()| {} )
+	(decl())*
+}
+
+void decl() : {}
+{
+	( var_decl() | const_decl() ) 
+}
+
+void var_decl() #varDecl : {}
+{
+	<VAR> ident_list() <COLON> type() ( <COMMA> ident_list() <COLON> type() )? <SEMICOLON>
+}
+
+void const_decl() #constDecl : {}
+{
+	( <CONST> identifier() <COLON> type() <ASSIGNMENT> expression() ( <COMMA> identifier() <COLON> type() <ASSIGNMENT> expression() )? <SEMICOLON>)
+}
+
+//void function () : {}
+//{
+//    type() <IDENTIFIER> <LEFT_BRACKET>(parameter_list())*<RIGHT_BRACKET>
+//    <LEFT_BRACE>
+//    (decl())*
+//    (statement_block())
+//    <RETURN> <LEFT_BRACKET>(expression())*<RIGHT_BRACKET><SEMICOLON>
+//    <RIGHT_BRACE>
+//}
+
+void function_list () : {}
+{
+    (function() function_list() | {})
+}
+
+void function() #FunctionDecl : {}
+{
+	type() identifier() <LEFT_BRACKET> (parameter_list())? #Params(>1) <RIGHT_BRACKET>
+	function_body()
+}
+
+void function_body() #functionBody(3) : {}
+{
+	<LEFT_BRACE>
+	decl_list()	
+	(statement_block())
+	<RETURN> <LEFT_BRACKET> (expression() | {} #Return) <RIGHT_BRACKET> <SEMICOLON>
+	<RIGHT_BRACE>
+}
+
+void type () #type : {}
+{ 
+	<INTEGER>  { jjtThis.value = token;} 
+	| <DOUBLE> { jjtThis.value = token;} 
+	| <BOOLEAN> { jjtThis.value = token;} 
+	| <VOID> { jjtThis.value = token;}
+
+}
+
+
+void parameter_list () : {}
+{
+	(identifier() <COLON> type() (<COMMA> parameter_list())?)
+}
+
+void main () #main : {}
+{
+	<MAIN> <LEFT_BRACE> 
+	decl_list()
+	(statement_block())
+	<RIGHT_BRACE>   
+}
+
+void statement_block () : {}
+{
+	(statement() statement_block())
+	|   {}
+}
+
+//void statement ()  : {}
+//{   //identifier() statement_prime()
+// REVERTED RECURSION ATTEMPT BELOW 
+//	identifier() statement_prime() <SEMICOLON>
+//	| <LEFT_BRACE> statement_block() <RIGHT_BRACE>
+//	| <IF> condition() #condition <LEFT_BRACE> statement_block() <RIGHT_BRACE> <ELSE> statement() #If(3)
+//	| <WHILE> condition() #condition <LEFT_BRACE> statement_block() <RIGHT_BRACE> #While(2)
+//	| <SK><SEMICOLON>
+//}
+
+void statement() : {}
+{
+	( statement_prime()) #Assign(2)
+	|   <LEFT_BRACE> statement_block() <RIGHT_BRACE>
+	|   <IF> condition() <LEFT_BRACE> statement_block() <RIGHT_BRACE> <ELSE> statement_block()  
+	|   <WHILE> condition() <LEFT_BRACE> statement_block() <RIGHT_BRACE> 
+	|   <SK> <SEMICOLON>
+}
+
+void statement_prime () : {}
+{
+	LOOKAHEAD(2)function_call() <SEMICOLON>
+	| LOOKAHEAD(2)identifier() <ASSIGNMENT> expression() <SEMICOLON>
+	//| <LEFT_BRACKET> arg_list() <RIGHT_BRACKET> <SEMICOLON>
+	//| LOOKAHEAD(2)function_call() <SEMICOLON>
+}
+
+void expression() : {} {
+
+    fragment() (
+        binary_arith_op() fragment()
+        | {}
+    )
+}
+
+void fragment() : {} {
+    //identifier() (<LEFT_BRACKET> arg_list() <RIGHT_BRACKET> fragment_dash()| fragment_dash())
+    (LOOKAHEAD(2)function_call() fragment_dash()| LOOKAHEAD(2)identifier() fragment_dash())
+    
+    | <MINUS> (identifier()|number()) fragment_dash()
+    | number() fragment_dash()
+    | bool() fragment_dash()
+    | <LEFT_BRACKET> expression() <RIGHT_BRACKET> fragment_dash()
+}
+
+void fragment_dash() : {} {
+
+    //binary_arith_op() fragment() fragment_dash()
+    //| {}
+	binary_arith_op() expression() | {}
+}
+
+void binary_arith_op () #binaryArithOp: { Token t; }
+{
+	<PLUS> { jjtThis.value = token;} 
+	| <MINUS> { jjtThis.value = token;} 
+}
+
+void condition (): {}
+{
+    <NOT> (condition()) (condition_dash()) |
+    LOOKAHEAD(1) <LEFT_BRACKET> condition() <RIGHT_BRACKET> condition_dash() |
+    expression() (comp_op() expression() condition_dash() #condition(>0) | {})	|
+    {}
+}
+
+
+void condition_dash (): {}
+{
+    (<OR> | <AND>) (condition()) (condition_dash()) |
+    {}
+}
+
+void comp_op () #compOp : { Token t; }
+{
+	/*<EQUALS> { jjtThis.value = token;}  
+	| <NOT_EQUALS> { jjtThis.value = token;}   
+	| <LESS_THAN> { jjtThis.value = token;} 
+	| <LESS_THAN_OR_EQUAL_TO> { jjtThis.value = token;}   
+	| <GREATER_THAN> { jjtThis.value = token;}
+	| <GREATER_THAN_OR_EQUAL_TO> { jjtThis.value = token;}*/
+(
+		<EQUALS> { jjtThis.value = token;} 
+	| <NOT_EQUALS> { jjtThis.value = token;} 
+	| <LESS_THAN> { jjtThis.value = token;} 
+	| <GREATER_THAN> { jjtThis.value = token;} 
+	| <GREATER_THAN_OR_EQUAL_TO> { jjtThis.value = token;} 
+	| <LESS_THAN_OR_EQUAL_TO> { jjtThis.value = token;} 
+	| <AND> { jjtThis.value = token;} 
+	| <OR> { jjtThis.value = token;} 
+)	 
+}
+
+void arg_list () #argList : {}
+{
+    //(nemp_arg_list()) ?
+	<LEFT_BRACKET> ((identifier() ( <COMMA> identifier())?) | {}) <RIGHT_BRACKET>
+}
+
+void nemp_arg_list ()  : {}
+{
+    identifier() (<COMMA> nemp_arg_list())?
+}
+
+
+void ident_list() #identList : {}
+{
+	identifier() ( <COMMA> identifier() )?
+}
+
+void bool() #bool : { Token t; }
+{
+	<TRUE> { jjtThis.value = token;} 
+	| <FALSE> { jjtThis.value = token;} 
+}
+
+void real() #real : { Token t;}
+{
+	<REAL> { jjtThis.value = token;} 
+}
+
+void function_call() #functionCall : {}
+{
+	//identifier() arg_list()
+	//identifier() <LEFT_BRACKET> arg_list() <RIGHT_BRACKET>
+	identifier() arg_list() 
+}
+
+void identifier() #Id : { Token t; }
+{
+	<IDENTIFIER> { jjtThis.value = token;} 
+}
+
+void number() #num : { Token t; }
+{
+	<NUMBER>
+	{
+		 jjtThis.value = token; 
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
