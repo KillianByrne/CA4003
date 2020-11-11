@@ -1,0 +1,387 @@
+/*******************************
+***** SECTION 1 - OPTIONS *****
+*******************************/
+options {
+    IGNORE_CASE = true;
+}
+
+/*********************************
+***** SECTION 2 - USER CODE *****
+*********************************/
+PARSER_BEGIN(assignment_one)
+import java.io.*;
+import java.util.*;
+
+public class assignment_one {
+    public static void main(String[] args) {
+        assignment_one tokeniser;
+        
+        // Initialise parser
+        if(args.length == 1) {   
+            try {
+                tokeniser = new assignment_one(new FileInputStream(args[0]));
+            }
+            catch(FileNotFoundException e) {
+                System.err.println("File " + args[0] + " not found");
+                return;
+            }
+        } else {
+            System.out.println("assignment_one can be used by entering the following command:");
+            System.out.println("     java assignment_one inputfile");
+            return;
+        }
+        
+        // put all tokens into map to be accessed when displaying program
+        HashMap allTokens = new HashMap();
+        allTokens.put(VAR, "VAR");
+        allTokens.put(CONST, "CONST");
+        allTokens.put(RETURN, "RETURN");
+        allTokens.put(INTEGER, "INTEGER");
+        allTokens.put(BOOLEAN, "BOOLEAN");
+        allTokens.put(VOID, "VOID");
+        allTokens.put(MAIN, "MAIN");
+        allTokens.put(IF, "IF");
+        allTokens.put(ELSE, "ELSE");
+        allTokens.put(WHILE, "WHILE");
+        allTokens.put(SK, "SK");
+        allTokens.put(TRUE, "TRUE");
+        allTokens.put(COMMA, "COMMA");
+        allTokens.put(SEMICOLON, "SEMICOLON");
+        allTokens.put(COLON, "COLON");
+        allTokens.put(LEFT_BRACE, "LEFT_BRACE");
+        allTokens.put(RIGHT_BRACE, "RIGHT_BRACE");
+        allTokens.put(LEFT_BRACKET, "LEFT_BRACKET");
+        allTokens.put(RIGHT_BRACKET, "RIGHT_BRACKET");
+        allTokens.put(ASSIGNMENT, "ASSIGNMENT");
+        allTokens.put(PLUS, "PLUS");
+        allTokens.put(MINUS, "MINUS");
+        allTokens.put(NOT, "NOT");
+        allTokens.put(OR, "OR");
+        allTokens.put(AND, "AND");
+        allTokens.put(EQUALS, "EQUALS");
+        allTokens.put(NOT_EQUALS, "NOT_EQUALS");
+        allTokens.put(LESS_THAN, "LESS_THAN");
+        allTokens.put(LESS_THAN_OR_EQUAL_TO, "LESS_THAN_OR_EQUAL_TO");
+        allTokens.put(GREATER_THAN, "GREATER_THAN");
+        allTokens.put(GREATER_THAN_OR_EQUAL_TO, "GREATER_THAN_OR_EQUAL_TO");
+        allTokens.put(NUMBER, "NUMBER");
+        allTokens.put(IDENTIFIER, "IDENTIFIER");
+        
+        // Display file
+        System.out.println("For the following file...");
+        for(Token t = getNextToken(); t.kind!=EOF; t = getNextToken()) {
+            System.out.print(allTokens.get(t.kind) + " ");
+            System.out.print("('" + t.image + "') ");
+        }
+        System.out.println();
+        
+        // Re-initialise parser
+        try {
+            ReInit(new FileInputStream(args[0]));
+        }
+        catch(FileNotFoundException e) {
+            System.err.println("File " + args[0] + " not found");
+            return;
+        }
+        
+        System.out.println("-------------------------------------------");
+        // Has program been parsed?
+        try {
+            tokeniser.program();
+            System.out.println("It has been parsed successfully!");
+        } catch(ParseException p) {
+            System.out.println("There was an error while parsing:");
+            System.err.println(p);
+        }
+    }
+}
+PARSER_END(assignment_one)
+
+/*****************************************
+***** SECTION 3 - TOKEN DEFINITIONS *****
+*****************************************/
+TOKEN_MGR_DECLS :
+{
+    static int commentNesting = 0;
+}
+    
+/* Ignore any whitespace */
+SKIP : {
+    "\t"
+  | "\n"
+  | "\r"
+  | "\f"
+  | " "
+}
+
+/* Ingore comments */
+SKIP : {
+    < "//" ([" "-"~"])* ("\n" | "\r" | "\r\n") >
+  |   "/*" { commentNesting++; } : IN_COMMENT
+}
+
+<IN_COMMENT> SKIP : {
+    "/*" { commentNesting++; }
+  | "*/" { commentNesting--;
+          if (commentNesting == 0)
+              SwitchTo(DEFAULT);
+         }
+  /* Anything not recognised */
+  | <~[]>
+}
+
+
+TOKEN : {
+        < VAR: "var" >
+    |   < CONST: "const">
+    |   < RETURN: "return">
+    |   < INTEGER: "integer">
+    |   < BOOLEAN: "boolean">
+    |   < VOID: "void">
+    |   < MAIN: "main">
+    |   < IF: "if">
+    |   < ELSE: "else">
+    |   < TRUE: "true">
+    |   < FALSE: "false">
+    |   < WHILE: "while">
+    |   < SK: "skip">
+    |   < BEGIN: "begin">
+    |   < END: "end">
+    |   < THEN: "then">
+    |   < DO: "do">
+
+
+/* symbols */
+
+    |   < COMMA: ",">
+    |   < COLON: ":">
+    |   < SEMICOLON: ";">
+    |   < LEFT_BRACE: "{">
+    |   < RIGHT_BRACE: "}">
+    |   < LEFT_BRACKET: "(">
+    |   < RIGHT_BRACKET: ")">
+
+/* operators */
+
+    |   < ASSIGNMENT: "=">
+    |   < PLUS: "+">
+    |   < MINUS: "-">
+    |   < NOT: "~">
+    |   < OR: "||">
+    |   < AND: "&&">
+    |   < EQUALS: "==">
+    |   < NOT_EQUALS: "!=">
+    |   < LESS_THAN: "<">
+    |   < LESS_THAN_OR_EQUAL_TO: "<=">
+    |   < GREATER_THAN: ">">
+    |   < GREATER_THAN_OR_EQUAL_TO: ">=">
+}
+
+TOKEN : /* Identifiers */
+ {
+		<IDENTIFIER : <CHAR> (<DIGIT> | <CHAR> | "_" )* >
+ 	|	<#CHAR : ["a" - "z"] | ["A" - "Z"]>
+ }
+
+TOKEN : /* Numbers */
+{
+		<NUMBER : (<DIGIT>)+>
+	|	<REAL: ( (<DIGIT>)+ "." (<DIGIT>)*) | ((<DIGIT>)* "." (<DIGIT>)+) >
+	|	<#DIGIT : ["0" - "9"]>
+}
+
+TOKEN : /* Anything not recognised so far */
+{
+    < OTHER : ~[] >
+}
+
+/*****************************************
+***** SECTION 4 - GRAMMAR *****
+*****************************************/
+
+void program() : {}
+{
+	( decl() )* 
+	( function() )*
+	main()
+}
+
+void decl() : {}
+{
+	( var_decl() | const_decl() ) 
+}
+
+void var_decl() : {}
+{
+	<VAR> ident_list() <COLON> type() ( <COMMA> ident_list() <COLON> type() )* <SEMICOLON>
+}
+
+void const_decl() : {}
+{
+	( <CONST> <IDENTIFIER> <COLON> type() <ASSIGNMENT> expression() ( <COMMA> <IDENTIFIER> <COLON> type() <ASSIGNMENT> expression() )* <SEMICOLON>)
+}
+
+void function_list () : {}
+{
+    function() (function_list())
+}
+
+void function () : {}
+{
+    type() <IDENTIFIER> <LEFT_BRACKET>(parameter_list())*<RIGHT_BRACKET>
+    <LEFT_BRACE>
+    (decl())*
+    (statement_block())
+    <RETURN> <LEFT_BRACKET>(expression())*<RIGHT_BRACKET><SEMICOLON>
+    <RIGHT_BRACE>
+}
+
+void type () : {}
+{
+    <INTEGER> | <BOOLEAN> | <VOID>
+}
+
+void parameter_list () : {}
+{
+    (<IDENTIFIER> <COLON> type() parameter_list_prime())   
+}
+
+void parameter_list_prime (): {}
+{
+    (<COMMA> parameter_list())?
+}
+
+
+void main () : {}
+{
+    <MAIN> <LEFT_BRACE> 
+    (decl())*
+    (statement_block())
+    <RIGHT_BRACE>   
+}
+
+void statement_block () : {}
+{
+    (statement() statement_block())?
+}
+
+void statement () : {}
+{   <IDENTIFIER> statement_prime()
+    | <LEFT_BRACE> statement_block() <RIGHT_BRACE>
+    | <IF> condition() <LEFT_BRACE> statement_block() <RIGHT_BRACE> <ELSE> statement()
+    | <WHILE> condition() <LEFT_BRACE> statement_block() <RIGHT_BRACE>
+    | <SK><SEMICOLON>
+}
+
+void statement_prime () : {}
+{
+	<ASSIGNMENT> expression()<SEMICOLON>
+	| <LEFT_BRACKET> arg_list() <RIGHT_BRACKET> <SEMICOLON>
+}
+
+void expression() : {} {
+
+    fragment() (
+        binary_arith_op() fragment()
+        | {}
+    )
+}
+
+void fragment() : {} {
+    <IDENTIFIER> (<LEFT_BRACKET> arg_list() <RIGHT_BRACKET> fragment_dash()| fragment_dash())
+    | <MINUS> (<IDENTIFIER>|<NUMBER>) fragment_dash()
+    | <NUMBER> fragment_dash()
+    | <TRUE> fragment_dash()
+    | <FALSE> fragment_dash()
+    | <LEFT_BRACKET> expression() <RIGHT_BRACKET> fragment_dash()
+
+}
+
+void fragment_dash() : {} {
+
+    binary_arith_op() fragment() fragment_dash()
+    | {}
+}
+
+void binary_arith_op () : {}
+{
+    <PLUS> | <MINUS>
+}
+
+/* Error: Left recursion detected: "condition... --> condition..." */
+/* trying to fix by attmepting to remove left recursion at bottom of condition */
+
+void condition (): {}
+{
+    <NOT> (condition()) (condition_dash()) |
+    LOOKAHEAD(1)<LEFT_BRACKET> (condition()) <RIGHT_BRACKET> (condition_dash()) |
+    (expression()) (comp_op()) (expression()) (condition_dash())
+}
+
+
+void condition_dash (): {}
+{
+    (<OR> | <AND>) (condition()) (condition_dash()) |
+    {}
+}
+
+void comp_op () : {}
+{
+    <EQUALS> | <NOT_EQUALS> | <LESS_THAN> | <LESS_THAN_OR_EQUAL_TO> | <GREATER_THAN> | <GREATER_THAN_OR_EQUAL_TO>
+}
+
+void arg_list () : {}
+{
+    (nemp_arg_list()) ?
+}
+
+void nemp_arg_list () : {}
+{
+    <IDENTIFIER> (<COMMA> nemp_arg_list())?
+}
+
+
+void ident_list() : {}
+{
+	<IDENTIFIER> ( <COMMA> <IDENTIFIER> )*
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
